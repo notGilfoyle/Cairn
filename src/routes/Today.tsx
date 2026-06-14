@@ -4,6 +4,7 @@ import { JournalCard } from "../components/today/JournalCard";
 import { Intentions } from "../components/today/Intentions";
 import { HabitCheckList } from "../components/today/HabitCheckList";
 import { TodoList } from "../components/today/TodoList";
+import { TrackSection } from "../components/today/TrackSection";
 import { prettyDate } from "../lib/dates";
 import { useStore } from "../store/useStore";
 
@@ -26,6 +27,7 @@ export default function Today() {
       <Intentions key={`int-${date}`} />
       <TodoList />
       <HabitCheckList />
+      <TrackSection />
       <JournalCard key={`pm-${date}`} slot="pm" />
     </div>
   );

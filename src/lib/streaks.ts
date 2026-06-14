@@ -196,11 +196,16 @@ export function weekCompletionRate(
   return completed / denom;
 }
 
-/** Collect the distinct tags across habits and todos, sorted. */
-export function allTags(habits: Habit[], todos: Todo[]): string[] {
+/** Collect the distinct tags across habits, todos, and (v2) trackers, sorted. */
+export function allTags(
+  habits: Habit[],
+  todos: Todo[],
+  trackers: { tags: string[] }[] = [],
+): string[] {
   const set = new Set<string>();
   for (const h of habits) for (const t of h.tags) set.add(t);
   for (const td of todos) for (const t of td.tags) set.add(t);
+  for (const tr of trackers) for (const t of tr.tags) set.add(t);
   return [...set].sort();
 }
 

@@ -1,4 +1,14 @@
-import { habitsRepo, habitLogsRepo, todosRepo, daysRepo, settingsRepo, metaRepo } from "./repositories";
+import {
+  habitsRepo,
+  habitLogsRepo,
+  todosRepo,
+  daysRepo,
+  settingsRepo,
+  metaRepo,
+  trackersRepo,
+  quantityEntriesRepo,
+  sessionEntriesRepo,
+} from "./repositories";
 import { SCHEMA_VERSION } from "./types";
 import { cadenceSummary } from "../lib/cadence";
 
@@ -11,18 +21,26 @@ export interface CairnExport {
   habits: unknown[];
   habitLogs: unknown[];
   todos: unknown[];
+  // v2 — optional so v1 exports (without these keys) remain valid.
+  trackers?: unknown[];
+  quantityEntries?: unknown[];
+  sessionEntries?: unknown[];
 }
 
 /** Full backup as a JSON string (the source of truth for round-trip restore). */
 export async function exportJSON(): Promise<string> {
-  const [meta, settings, days, habits, habitLogs, todos] = await Promise.all([
-    metaRepo.get(),
-    settingsRepo.get(),
-    daysRepo.all(),
-    habitsRepo.all(),
-    habitLogsRepo.all(),
-    todosRepo.all(),
-  ]);
+  const [meta, settings, days, habits, habitLogs, todos, trackers, quantityEntries, sessionEntries] =
+    await Promise.all([
+      metaRepo.get(),
+      settingsRepo.get(),
+      daysRepo.all(),
+      habitsRepo.all(),
+      habitLogsRepo.all(),
+      todosRepo.all(),
+      trackersRepo.all(),
+      quantityEntriesRepo.all(),
+      sessionEntriesRepo.all(),
+    ]);
   const payload: CairnExport = {
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
@@ -32,6 +50,9 @@ export async function exportJSON(): Promise<string> {
     habits,
     habitLogs,
     todos,
+    trackers,
+    quantityEntries,
+    sessionEntries,
   };
   return JSON.stringify(payload, null, 2);
 }

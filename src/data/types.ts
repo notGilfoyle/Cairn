@@ -73,6 +73,7 @@ export interface Settings {
   amPromptEnabled: boolean;
   pmPromptEnabled: boolean;
   showedUpThreshold: number; // reserved for tuning the "showed up" rule
+  currency: string; // v2: symbol for finance/ledger trackers, default "₹"
 }
 
 export interface Meta {
@@ -83,4 +84,70 @@ export interface Meta {
   seededDefaults: boolean; // whether first-run default seed has run
 }
 
-export const SCHEMA_VERSION = 1;
+// ─────────────────────────────────────────────────────────────────────────
+// v2 "Quantify & Move" — tracker engine (additive; v1 types above untouched)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type TrackerType = "quantity" | "session";
+
+/** How a quantity tracker rolls up multiple entries within a period. */
+export type Aggregation = "sum" | "average" | "latest" | "count";
+
+/** Drives trend coloring on the dashboard. */
+export type Direction = "up_good" | "down_good" | "neutral";
+
+export type GoalPeriod = "day" | "week" | "month";
+
+export interface Goal {
+  period: GoalPeriod;
+  target: number;
+}
+
+export interface Tracker {
+  id: string;
+  name: string;
+  type: TrackerType;
+  emoji: string;
+  color: string;
+  tags: string[];
+  archived: boolean;
+  createdAt: string;
+  sortOrder: number;
+  presetKey: string | null;
+
+  // quantity-only (null on session trackers)
+  unit: string | null; // "₹", "kg", "ml", "hrs", "km"
+  aggregation: Aggregation | null;
+  allowsNegative: boolean; // true = ledger style (finance)
+  direction: Direction | null;
+  goal: Goal | null;
+
+  // session-only (empty on quantity trackers)
+  sessionTypes: string[]; // ["Running","Calisthenics","Gym","Swim","Basketball"]
+}
+
+export interface QuantityEntry {
+  id: string;
+  trackerId: string;
+  date: DateStr;
+  amount: number; // may be negative iff tracker.allowsNegative
+  note: string | null;
+  tags: string[]; // entry-level, e.g. finance category
+  createdAt: string;
+}
+
+export interface SessionEntry {
+  id: string;
+  trackerId: string;
+  date: DateStr;
+  sessionType: string; // one of tracker.sessionTypes
+  durationMin: number | null;
+  distanceKm: number | null;
+  reps: number | null;
+  intensity: Mood | null; // optional RPE, 1–5
+  note: string | null;
+  tags: string[];
+  createdAt: string;
+}
+
+export const SCHEMA_VERSION = 2;

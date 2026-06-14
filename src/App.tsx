@@ -2,13 +2,16 @@ import { useEffect } from "react";
 import { useStore, type View } from "./store/useStore";
 import Today from "./routes/Today";
 import Dashboard from "./routes/Dashboard";
+import Trackers from "./routes/Trackers";
 import Manage from "./routes/Manage";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { GlobalLogButton } from "./components/trackers/GlobalLogButton";
 import { cx } from "./components/ui/cx";
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "Today", icon: "◎" },
   { id: "dashboard", label: "Dashboard", icon: "▤" },
+  { id: "trackers", label: "Trackers", icon: "▦" },
   { id: "manage", label: "Manage", icon: "⚙" },
 ];
 
@@ -37,9 +40,13 @@ export default function App() {
         <ErrorBoundary>
           {view === "today" && <Today />}
           {view === "dashboard" && <Dashboard />}
+          {view === "trackers" && <Trackers />}
           {view === "manage" && <Manage />}
         </ErrorBoundary>
       </main>
+
+      {/* App-wide quick-log floating button */}
+      <GlobalLogButton />
 
       {/* Bottom tab bar (mobile-first, comfortable on desktop) */}
       <nav

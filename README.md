@@ -1,8 +1,14 @@
 # Cairn
 
-A fast, calm, **local-first** daily-ritual app: morning/evening journaling, today's
-todos, and habit check-ins — rolled up into a dashboard of streaks and trends.
-No backend, no account, no network calls. Your data never leaves the device.
+A fast, calm, **local-first** daily-ritual app. No backend, no account, no network
+calls — your data never leaves the device.
+
+- **Daily ritual (v1):** morning/evening journaling, todos, and habit check-ins,
+  rolled up into a dashboard of streaks and trends.
+- **Quantify & move (v2):** a generic **tracker engine** for *quantities* (finance,
+  weight, water, study hours) and *sessions* (workouts), with a builder + presets,
+  fast logging, per-tracker charts, and dashboard analytics (measure / ledger /
+  workout cards).
 
 > A cairn is the stack of stones that marks a trail.
 
@@ -47,11 +53,12 @@ JSON backup (or per-entity CSVs) and to restore/import. Nothing is ever transmit
 
 ## Seed data
 
-On first launch Cairn plants a few starter habits and todos. For testing the
-dashboard with history, run in the browser console:
+On first launch Cairn plants a few starter habits and todos. For testing with
+history, run in the browser console:
 
 ```js
-import("/src/data/seed.ts").then((m) => m.seedDemoData(30));
+import("/src/data/seed.ts").then((m) => m.seedDemoData(30));   // v1: habits + journals
+import("/src/data/seed.ts").then((m) => m.seedTrackerDemo(35)); // v2: finance/water/workouts
 ```
 
-See `docs/prd.md` for the full product spec.
+See `docs/prd.md` (v1) and `docs/v2-PRD.md` (v2) for the full product specs.

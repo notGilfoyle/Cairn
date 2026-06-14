@@ -9,6 +9,9 @@ import type {
   Theme,
   AccentKey,
   WeekStart,
+  Tracker,
+  QuantityEntry,
+  SessionEntry,
 } from "../data/types";
 import {
   settingsRepo,
@@ -17,6 +20,10 @@ import {
   todosRepo,
   daysRepo,
   metaRepo,
+  trackersRepo,
+  quantityEntriesRepo,
+  sessionEntriesRepo,
+  type TrackerInput,
   DEFAULT_SETTINGS,
 } from "../data/repositories";
 import { seedDefaultsIfEmpty } from "../data/seed";
@@ -25,7 +32,7 @@ import { isScheduledOn } from "../lib/cadence";
 import { applyAccent } from "../lib/accent";
 import { newId } from "../lib/id";
 
-export type View = "today" | "dashboard" | "manage";
+export type View = "today" | "dashboard" | "trackers" | "manage";
 
 /** Editable fields when creating a habit from the Manage screen. */
 export type HabitInput = Pick<Habit, "name" | "emoji" | "color" | "cadence" | "tags">;
@@ -40,6 +47,11 @@ interface StoreState {
   todayLogs: Record<string, HabitLog>; // habitId -> log for `date`
   todos: Todo[]; // all todos
   day: Day; // the current day's journal/intentions
+  trackers: Tracker[]; // all trackers (incl. archived); filter in selectors
+
+  // entriesVersion bumps whenever a quantity/session entry changes, so views
+  // that load entries on demand (detail, dashboard) know to re-fetch.
+  entriesVersion: number;
 
   // lifecycle
   hydrate: () => Promise<void>;
@@ -73,6 +85,25 @@ interface StoreState {
   saveJournal: (slot: "am" | "pm", text: string) => Promise<void>;
   setMood: (slot: "am" | "pm", mood: Mood | null) => Promise<void>;
   setIntentions: (intentions: string[]) => Promise<void>;
+
+  // trackers (v2)
+  reloadTrackers: () => Promise<void>;
+  createTracker: (input: TrackerInput) => Promise<Tracker>;
+  updateTracker: (id: string, patch: Partial<Omit<Tracker, "id">>) => Promise<void>;
+  archiveTracker: (id: string, archived: boolean) => Promise<void>;
+  deleteTracker: (id: string) => Promise<void>;
+
+  // tracker entries (v2) — each mutation bumps entriesVersion
+  addQuantityEntry: (
+    input: Partial<QuantityEntry> & Pick<QuantityEntry, "trackerId" | "date" | "amount">,
+  ) => Promise<void>;
+  updateQuantityEntry: (id: string, patch: Partial<Omit<QuantityEntry, "id">>) => Promise<void>;
+  deleteQuantityEntry: (id: string) => Promise<void>;
+  addSessionEntry: (
+    input: Partial<SessionEntry> & Pick<SessionEntry, "trackerId" | "date" | "sessionType">,
+  ) => Promise<void>;
+  updateSessionEntry: (id: string, patch: Partial<Omit<SessionEntry, "id">>) => Promise<void>;
+  deleteSessionEntry: (id: string) => Promise<void>;
 }
 
 function applyTheme(theme: Theme) {
@@ -100,6 +131,8 @@ export const useStore = create<StoreState>((set, get) => ({
   todayLogs: {},
   todos: [],
   day: { date: todayStr(), amJournal: null, pmJournal: null, intentions: [], updatedAt: "" },
+  trackers: [],
+  entriesVersion: 0,
 
   async hydrate() {
     if (get().ready) return;
@@ -114,17 +147,18 @@ export const useStore = create<StoreState>((set, get) => ({
       applyAccent(settings.accent);
 
       const date = todayStr();
-      const [habits, todos, day, logs] = await Promise.all([
+      const [habits, todos, day, logs, trackers] = await Promise.all([
         habitsRepo.all(),
         todosRepo.all(),
         daysRepo.getOrEmpty(date),
         habitLogsRepo.forDate(date),
+        trackersRepo.all(),
       ]);
 
       const todayLogs: Record<string, HabitLog> = {};
       for (const l of logs) todayLogs[l.habitId] = l;
 
-      set({ ready: true, settings, date, habits, todos, day, todayLogs });
+      set({ ready: true, settings, date, habits, todos, day, todayLogs, trackers });
     })();
 
     return hydratePromise;
@@ -264,6 +298,63 @@ export const useStore = create<StoreState>((set, get) => ({
     const day = await daysRepo.patch(get().date, { intentions });
     set({ day });
   },
+
+  async reloadTrackers() {
+    set({ trackers: await trackersRepo.all() });
+  },
+
+  async createTracker(input) {
+    const tracker = await trackersRepo.create(input);
+    await get().reloadTrackers();
+    return tracker;
+  },
+
+  async updateTracker(id, patch) {
+    await trackersRepo.update(id, patch);
+    await get().reloadTrackers();
+  },
+
+  async archiveTracker(id, archived) {
+    await trackersRepo.setArchived(id, archived);
+    await get().reloadTrackers();
+  },
+
+  async deleteTracker(id) {
+    await trackersRepo.remove(id);
+    await get().reloadTrackers();
+    // entries were removed too
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async addQuantityEntry(input) {
+    await quantityEntriesRepo.create(input);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async updateQuantityEntry(id, patch) {
+    await quantityEntriesRepo.update(id, patch);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async deleteQuantityEntry(id) {
+    await quantityEntriesRepo.remove(id);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async addSessionEntry(input) {
+    await sessionEntriesRepo.create(input);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async updateSessionEntry(id, patch) {
+    await sessionEntriesRepo.update(id, patch);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
+
+  async deleteSessionEntry(id) {
+    await sessionEntriesRepo.remove(id);
+    set({ entriesVersion: get().entriesVersion + 1 });
+  },
 }));
 
 /** Selector: habits scheduled for the anchored date, excluding archived. */
@@ -279,4 +370,9 @@ export function todayTodos(s: StoreState): Todo[] {
       t.date === d ||
       (!t.done && t.carryOver && t.date !== null && t.date < d),
   );
+}
+
+/** Selector: non-archived trackers, in sort order. */
+export function activeTrackers(s: StoreState): Tracker[] {
+  return s.trackers.filter((t) => !t.archived);
 }

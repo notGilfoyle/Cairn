@@ -1,6 +1,17 @@
 import { db } from "./db";
 import { habitsRepo } from "./repositories";
-import type { Cadence, Day, Habit, HabitLog, Todo, Settings, Meta } from "./types";
+import type {
+  Cadence,
+  Day,
+  Habit,
+  HabitLog,
+  Todo,
+  Settings,
+  Meta,
+  Tracker,
+  QuantityEntry,
+  SessionEntry,
+} from "./types";
 import type { CairnExport } from "./export";
 
 /** Minimal RFC-4180-ish CSV parser (handles quoted cells, commas, newlines). */
@@ -123,20 +134,40 @@ export async function importFullJSON(text: string): Promise<void> {
     throw new Error("Not a valid Cairn export (missing schemaVersion).");
   }
 
+  // Version-aware: a v1 export has no tracker keys, so the new stores are simply
+  // cleared and left empty. A v2 export restores them too.
   await db.transaction(
     "rw",
-    [db.days, db.habits, db.habitLogs, db.todos, db.settings, db.meta],
+    [
+      db.days,
+      db.habits,
+      db.habitLogs,
+      db.todos,
+      db.settings,
+      db.meta,
+      db.trackers,
+      db.quantityEntries,
+      db.sessionEntries,
+    ],
     async () => {
       await Promise.all([
         db.days.clear(),
         db.habits.clear(),
         db.habitLogs.clear(),
         db.todos.clear(),
+        db.trackers.clear(),
+        db.quantityEntries.clear(),
+        db.sessionEntries.clear(),
       ]);
       if (Array.isArray(data.days)) await db.days.bulkPut(data.days as Day[]);
       if (Array.isArray(data.habits)) await db.habits.bulkPut(data.habits as Habit[]);
       if (Array.isArray(data.habitLogs)) await db.habitLogs.bulkPut(data.habitLogs as HabitLog[]);
       if (Array.isArray(data.todos)) await db.todos.bulkPut(data.todos as Todo[]);
+      if (Array.isArray(data.trackers)) await db.trackers.bulkPut(data.trackers as Tracker[]);
+      if (Array.isArray(data.quantityEntries))
+        await db.quantityEntries.bulkPut(data.quantityEntries as QuantityEntry[]);
+      if (Array.isArray(data.sessionEntries))
+        await db.sessionEntries.bulkPut(data.sessionEntries as SessionEntry[]);
       if (data.settings) await db.settings.put(data.settings as Settings);
       if (data.meta) await db.meta.put(data.meta as Meta);
     },

@@ -10,6 +10,7 @@ export function AppearanceSettings() {
   const setAccent = useStore((s) => s.setAccent);
   const toggleTheme = useStore((s) => s.toggleTheme);
   const setWeekStart = useStore((s) => s.setWeekStart);
+  const patchSettings = useStore((s) => s.patchSettings);
 
   return (
     <Card>
@@ -57,6 +58,15 @@ export function AppearanceSettings() {
               </button>
             ))}
           </div>
+        </Row>
+
+        <Row label="Currency symbol">
+          <input
+            value={settings.currency}
+            onChange={(e) => patchSettings({ currency: e.target.value.slice(0, 3) })}
+            aria-label="Currency symbol"
+            className="h-9 w-20 rounded-lg border border-slate-200 bg-transparent px-3 text-center dark:border-slate-700"
+          />
         </Row>
       </div>
     </Card>

@@ -1,7 +1,17 @@
-import { habitsRepo, todosRepo, daysRepo, habitLogsRepo, metaRepo } from "./repositories";
+import {
+  habitsRepo,
+  todosRepo,
+  daysRepo,
+  habitLogsRepo,
+  metaRepo,
+  trackersRepo,
+  quantityEntriesRepo,
+  sessionEntriesRepo,
+} from "./repositories";
 import type { Mood } from "./types";
 import { today, addDaysStr, weekdayOf } from "../lib/dates";
 import { isScheduledOn } from "../lib/cadence";
+import { PRESETS } from "./presets";
 
 /**
  * Sensible defaults shown on first launch so the app isn't empty (per the
@@ -107,6 +117,67 @@ export async function seedDemoData(days = 30): Promise<void> {
   }
 }
 
+/**
+ * Dev-only (v2): create the Finance, Water, and Workouts trackers if missing and
+ * backfill ~`days` days of entries so charts/analytics have something to show.
+ * Run from the console:
+ *   import("/src/data/seed.ts").then(m => m.seedTrackerDemo())
+ */
+export async function seedTrackerDemo(days = 35): Promise<void> {
+  const existing = await trackersRepo.all();
+  const ensure = async (key: string) => {
+    const found = existing.find((t) => t.presetKey === key);
+    if (found) return found;
+    const preset = PRESETS.find((p) => p.key === key)!;
+    return trackersRepo.create({ ...preset.config });
+  };
+
+  const finance = await ensure("finance");
+  const water = await ensure("water");
+  const workouts = await ensure("workouts");
+
+  const end = today();
+  const categories = ["food", "transport", "rent", "fun", "salary"];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = addDaysStr(end, -i);
+    const wd = weekdayOf(date);
+
+    // Finance: a couple of spends most days, salary on the 1st-ish.
+    if (i % 1 === 0) {
+      await quantityEntriesRepo.create({
+        trackerId: finance.id,
+        date,
+        amount: -(50 + ((i * 37) % 400)),
+        tags: [categories[i % 4]],
+      });
+    }
+    if (i % 30 === 5) {
+      await quantityEntriesRepo.create({ trackerId: finance.id, date, amount: 50000, tags: ["salary"] });
+    }
+
+    // Water: 1–3 logs/day adding toward ~2000ml.
+    if (i % 7 !== 0) {
+      await quantityEntriesRepo.create({ trackerId: water.id, date, amount: 500 });
+      await quantityEntriesRepo.create({ trackerId: water.id, date, amount: 250 + ((i * 53) % 800) });
+    }
+
+    // Workouts: ~3–4 sessions/week.
+    if ([1, 3, 5, 6].includes(wd)) {
+      const types = ["Running", "Gym", "Calisthenics", "Swim", "Basketball"];
+      const type = types[(i + wd) % types.length];
+      await sessionEntriesRepo.create({
+        trackerId: workouts.id,
+        date,
+        sessionType: type,
+        durationMin: 30 + ((i * 7) % 40),
+        distanceKm: type === "Running" ? 4 + ((i * 3) % 6) : null,
+        intensity: (((i % 5) + 1) as Mood),
+      });
+    }
+  }
+}
+
 /** Wipe everything (dev helper / used by import-replace). */
 export async function clearAllData(): Promise<void> {
   await Promise.all([
@@ -114,5 +185,8 @@ export async function clearAllData(): Promise<void> {
     habitsRepo.clear(),
     habitLogsRepo.clear(),
     todosRepo.clear(),
+    trackersRepo.clear(),
+    quantityEntriesRepo.clear(),
+    sessionEntriesRepo.clear(),
   ]);
 }
